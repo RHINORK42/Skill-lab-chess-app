@@ -3,13 +3,11 @@ import 'dart:math';
 
 import 'package:bishop/bishop.dart' as bishop;
 import 'package:chess_app/helper/helperMethods.dart';
-import 'package:chess_app/helper/uciCommands.dart';
 import 'package:chess_app/providers/gameProvider.dart';
 import 'package:chess_app/service/assetsManager.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:squares/squares.dart';
-import 'package:stockfish/stockfish.dart';
 
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
@@ -19,12 +17,9 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
-
-  late Stockfish stockfish;
  
   @override
   void initState() {
-    stockfish = Stockfish();
     final gameProvider = context.read<GameProvider>();
 
     gameProvider.resetGame(newGame: false);
@@ -32,11 +27,6 @@ class _GameScreenState extends State<GameScreen> {
       letOtherPlayerPlayFirst();
     }
     super.initState();
-  }
-  @override
-  void dispose() {
-    stockfish.dispose();
-    super.dispose();
   }
 
   void letOtherPlayerPlayFirst(){
@@ -63,6 +53,7 @@ class _GameScreenState extends State<GameScreen> {
   void _onMove(Move move) async {
     final gameProvider = context.read<GameProvider>();
 
+    print("move: $move ");
     bool result = gameProvider.makeSquaresMove(move);
     if (result) {
       gameProvider.setSquaresState().whenComplete((){
@@ -90,62 +81,39 @@ class _GameScreenState extends State<GameScreen> {
     }
     if (gameProvider.state.state == PlayState.theirTurn && !gameProvider.aiThinking) {
       gameProvider.setAiThinking(true);
+      await Future.delayed(
+          Duration(milliseconds: Random().nextInt(4750) + 250));
+      gameProvider.game.makeRandomMove();
+      gameProvider.setAiThinking(false);
+      gameProvider.setSquaresState().whenComplete((){
+        if(gameProvider.player== Squares.white){
 
-      //wait until our stockfish is ready
-      await waitUntilReady();
+        //pause timer for black
+        gameProvider.pauseBlacksTimer();
+        startTimer(
+          isWhitesTimer: true, 
+          onNewGame: (){},
+          );
+        }else{
+          //pause timer for white
+        gameProvider.pauseWhitesTimer();
+        startTimer(
+          isWhitesTimer: false, 
+          onNewGame: (){},
+          );
 
-      //get the current position of the board and send it to stockfish :)
-      stockfish.stdin = '${UCICommands.position} ${gameProvider.getPositionFen()}';
-      //set difficulty of stockfish T_T
-      stockfish.stdin = '${UCICommands.goMoveTime} ${gameProvider.gameLevel * 1000}';
-
-      stockfish.stdout.listen((event) {
-        print("events ###########################: $event");
-        
-      },);
-
-
-
-      // await Future.delayed(
-      //     Duration(milliseconds: Random().nextInt(4750) + 250));
-      
-      // gameProvider.setAiThinking(false);
-      // gameProvider.setSquaresState().whenComplete((){
-      //   if(gameProvider.player== Squares.white){
-
-      //   //pause timer for black
-      //   gameProvider.pauseBlacksTimer();
-      //   startTimer(
-      //     isWhitesTimer: true, 
-      //     onNewGame: (){},
-      //     );
-      //   }else{
-      //     //pause timer for white
-      //   gameProvider.pauseWhitesTimer();
-      //   startTimer(
-      //     isWhitesTimer: false, 
-      //     onNewGame: (){},
-      //     );
-
-      //   }
-      // });
+        }
+      });
       
     }
-    await Future.delayed(const Duration(seconds: 1));
+
     //listen if it is game over
     checkGameOverListener();
   }
-Future<void> waitUntilReady() async{
-  while(stockfish.state.value != StockfishState.ready)
-  {
-    await Future.delayed(const Duration(seconds: 1));
-  }
-
-}
-
+  
   void checkGameOverListener(){
     final gameProvider = context.read<GameProvider>();
-    gameProvider.gameOverListener(context: context, stockfish: stockfish, onNewGame: (){
+    gameProvider.gameOverListener(context: context, onNewGame: (){
       // start new game
     },);
 
@@ -154,10 +122,10 @@ Future<void> waitUntilReady() async{
     final gameProvider = context.read<GameProvider>();
     if(isWhitesTimer){
       // start timer for white
-      gameProvider.startWhitesTimer(context: context, stockfish: stockfish, onNewGame: onNewGame);
+      gameProvider.startWhitesTimer(context: context, onNewGame: onNewGame);
     }else{
       //start timer for black
-      gameProvider.startBlacksTimer(context: context, stockfish: stockfish,onNewGame:  onNewGame);
+      gameProvider.startBlacksTimer(context: context, onNewGame: onNewGame);
     }
   }
   @override
